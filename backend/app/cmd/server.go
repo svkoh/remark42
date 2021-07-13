@@ -96,6 +96,7 @@ type ServerCommand struct {
 		Microsoft AuthGroup `group:"microsoft" namespace:"microsoft" env-namespace:"MICROSOFT" description:"Microsoft OAuth"`
 		Yandex    AuthGroup `group:"yandex" namespace:"yandex" env-namespace:"YANDEX" description:"Yandex OAuth"`
 		Twitter   AuthGroup `group:"twitter" namespace:"twitter" env-namespace:"TWITTER" description:"Twitter OAuth"`
+		Wechat    AuthGroup `group:"wechat" namespace:"wechat" env-namespace:"WECHAT" description:"Wechat OAuth"`
 		Dev       bool      `long:"dev" env:"DEV" description:"enable dev (local) oauth2"`
 		Anonymous bool      `long:"anon" env:"ANON" description:"enable anonymous login"`
 		Email     struct {
@@ -789,6 +790,10 @@ func (s *ServerCommand) addAuthProviders(authenticator *auth.Service) error {
 	}
 	if s.Auth.Twitter.CID != "" && s.Auth.Twitter.CSEC != "" {
 		authenticator.AddProvider("twitter", s.Auth.Twitter.CID, s.Auth.Twitter.CSEC)
+		providers++
+	}
+	if s.Auth.Wechat.CID != "" && s.Auth.Wechat.CSEC != "" {
+		authenticator.AddProvider("wechat", s.Auth.Wechat.CID, s.Auth.Wechat.CSEC)
 		providers++
 	}
 

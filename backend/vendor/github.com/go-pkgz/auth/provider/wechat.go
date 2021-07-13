@@ -17,8 +17,8 @@ import (
 	"github.com/go-pkgz/auth/token"
 )
 
-// Oauth2Handler implements /login, /callback and /logout handlers from aouth2 flow
-type Oauth2Handler struct {
+// WechatHandler implements /login, /callback and /logout handlers from aouth2 flow
+type WechatHandler struct {
 	Params
 
 	// all of these fields specific to particular oauth2 provider
@@ -30,37 +30,12 @@ type Oauth2Handler struct {
 	conf     oauth2.Config
 }
 
-// Params to make initialized and ready to use provider
-type Params struct {
-	logger.L
-	URL         string
-	JwtService  TokenService
-	Cid         string
-	Csecret     string
-	Issuer      string
-	AvatarSaver AvatarSaver
-
-	Port int // relevant for providers supporting port customization, for example dev oauth2
-}
-
-// UserData is type for user information returned from oauth2 providers /info API method
-type UserData map[string]interface{}
-
-// Value returns value for key or empty string if not found
-func (u UserData) Value(key string) string {
-	// json.Unmarshal converts json "null" value to go's "nil", in this case return empty string
-	if val, ok := u[key]; ok && val != nil {
-		return fmt.Sprintf("%v", val)
-	}
-	return ""
-}
-
-// initOauth2Handler makes oauth2 handler for given provider
-func initOauth2Handler(p Params, service Oauth2Handler) Oauth2Handler {
+// initWechatHandler makes oauth2 handler for given provider
+func initWechatHandler(p Params, service WechatHandler) WechatHandler {
 	if p.L == nil {
 		p.L = logger.NoOp
 	}
-	p.Logf("[INFO] init oauth2 service %s", service.name)
+	p.Logf("[INFO] init wechat oauth2 service %s", service.name)
 	service.Params = p
 	service.conf = oauth2.Config{
 		ClientID:     service.Cid,
@@ -75,10 +50,10 @@ func initOauth2Handler(p Params, service Oauth2Handler) Oauth2Handler {
 }
 
 // Name returns provider name
-func (p Oauth2Handler) Name() string { return p.name }
+func (p WechatHandler) Name() string { return p.name }
 
 // LoginHandler - GET /login?from=redirect-back-url&[site|aud]=siteID&session=1&noava=1
-func (p Oauth2Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
+func (p WechatHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	p.Logf("[DEBUG] login with %s", p.Name())
 	// make state (random) and store in session
@@ -124,7 +99,8 @@ func (p Oauth2Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	p.conf.RedirectURL = p.makeRedirURL(r.URL.Path)
 
 	// return login url
-	loginURL := p.conf.AuthCodeURL(state)
+	appid := oauth2.SetAuthURLParam("appid", p.Cid)
+	loginURL := p.conf.AuthCodeURL(state, appid) + "#wechat_redirect"
 	p.Logf("[DEBUG] login url %s, claims=%+v", loginURL, claims)
 
 	http.Redirect(w, r, loginURL, http.StatusFound)
@@ -132,7 +108,7 @@ func (p Oauth2Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 // AuthHandler fills user info and redirects to "from" url. This is callback url redirected locally by browser
 // GET /callback
-func (p Oauth2Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
+func (p WechatHandler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	oauthClaims, _, err := p.JwtService.Get(r)
 	if err != nil {
 		rest.SendErrorJSON(w, r, p.L, http.StatusInternalServerError, err, "failed to get token")
@@ -153,14 +129,16 @@ func (p Oauth2Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	p.conf.RedirectURL = p.makeRedirURL(r.URL.Path)
 
 	p.Logf("[DEBUG] token with state %s", retrievedState)
-	tok, err := p.conf.Exchange(context.Background(), r.URL.Query().Get("code"))
+	appid := oauth2.SetAuthURLParam("appid", p.Cid)
+	tok, err := p.conf.Exchange(context.Background(), r.URL.Query().Get("code"), appid)
 	if err != nil {
 		rest.SendErrorJSON(w, r, p.L, http.StatusInternalServerError, err, "exchange failed")
 		return
 	}
+	openid := tok.Extra("openid")
 
 	client := p.conf.Client(context.Background(), tok)
-	uinfo, err := client.Get(p.infoURL)
+	uinfo, err := client.Get(fmt.Sprintf("%s?openid=%s", p.infoURL, openid))
 	if err != nil {
 		rest.SendErrorJSON(w, r, p.L, http.StatusServiceUnavailable, err, "failed to get client info")
 		return
@@ -227,7 +205,7 @@ func (p Oauth2Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // LogoutHandler - GET /logout
-func (p Oauth2Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+func (p WechatHandler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	if _, _, err := p.JwtService.Get(r); err != nil {
 		rest.SendErrorJSON(w, r, p.L, http.StatusForbidden, err, "logout not allowed")
 		return
@@ -235,7 +213,7 @@ func (p Oauth2Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	p.JwtService.Reset(w)
 }
 
-func (p Oauth2Handler) makeRedirURL(path string) string {
+func (p WechatHandler) makeRedirURL(path string) string {
 	elems := strings.Split(path, "/")
 	newPath := strings.Join(elems[:len(elems)-1], "/")
 

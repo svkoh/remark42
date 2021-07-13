@@ -2,7 +2,7 @@
 package provider
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" //nolint
 	"encoding/json"
 	"fmt"
 
@@ -186,6 +186,27 @@ func NewMicrosoft(p Params) Oauth2Handler {
 				ID:      "microsoft_" + token.HashID(sha1.New(), data.Value("id")),
 				Name:    data.Value("displayName"),
 				Picture: "https://graph.microsoft.com/beta/me/photo/$value",
+			}
+			return userInfo
+		},
+	})
+}
+
+// NewWechat makes wechat oauth2 provider
+func NewWechat(p Params) WechatHandler {
+	return initWechatHandler(p, WechatHandler{
+		name: "wechat",
+		endpoint: oauth2.Endpoint{
+			AuthURL:  "https://open.weixin.qq.com/connect/qrconnect",
+			TokenURL: "https://api.weixin.qq.com/sns/oauth2/access_token",
+		},
+		scopes:  []string{"snsapi_login"},
+		infoURL: "https://api.weixin.qq.com/sns/userinfo",
+		mapUser: func(data UserData, _ []byte) token.User {
+			userInfo := token.User{
+				ID:      "wechat_" + data.Value("openid") + "_" + data.Value("unionid"),
+				Name:    data.Value("nickname"),
+				Picture: data.Value("headimgurl"),
 			}
 			return userInfo
 		},

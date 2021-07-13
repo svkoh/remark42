@@ -235,6 +235,8 @@ func (s *Service) AddProvider(name, cid, csecret string) {
 		s.providers = append(s.providers, provider.NewService(provider.NewMicrosoft(p)))
 	case "twitter":
 		s.providers = append(s.providers, provider.NewService(provider.NewTwitter(p)))
+	case "wechat":
+		s.providers = append(s.providers, provider.NewService(provider.NewWechat(p)))
 	case "dev":
 		s.providers = append(s.providers, provider.NewService(provider.NewDev(p)))
 	default:
@@ -255,6 +257,26 @@ func (s *Service) AddDevProvider(port int) {
 		Port:        port,
 	}
 	s.providers = append(s.providers, provider.NewService(provider.NewDev(p)))
+}
+
+// AddAppleProvider allow SignIn with Apple ID
+func (s *Service) AddAppleProvider(appleConfig provider.AppleConfig, privKeyLoader provider.PrivateKeyLoaderInterface) error {
+	p := provider.Params{
+		URL:         s.opts.URL,
+		JwtService:  s.jwtService,
+		Issuer:      s.issuer,
+		AvatarSaver: s.avatarProxy,
+		L:           s.logger,
+	}
+
+	// Error checking at create need for catch one when apple private key init
+	appleProvider, err := provider.NewApple(p, appleConfig, privKeyLoader)
+	if err != nil {
+		return errors.Wrap(err, "an AppleProvider creating failed")
+	}
+
+	s.providers = append(s.providers, provider.NewService(appleProvider))
+	return nil
 }
 
 // AddCustomProvider adds custom provider (e.g. https://gopkg.in/oauth2.v3)

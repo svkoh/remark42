@@ -37,3 +37,5 @@ require (
 	golang.org/x/image v0.0.0-20210504121937-7319ad40d33e
 	golang.org/x/net v0.0.0-20210423184538-5f58ad60dda6
 )
+
+replace github.com/go-pkgz/auth => github.com/svkoh/auth v1.5.2
